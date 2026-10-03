@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mes vélos</title>
+    <!-- Chargement de Tailwind CSS pour un design moderne et élégant -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-center items-center p-4 sm:p-8">
+
+    <main class="w-full max-w-3xl bg-slate-800/90 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl border border-slate-700/60">
+        
+        <!-- En-tête -->
+        <header class="text-center mb-10">
+            <div class="inline-flex items-center justify-center p-3.5 bg-indigo-500/10 rounded-2xl mb-4 text-indigo-400 border border-indigo-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <circle cx="5.5" cy="17.5" r="3.5" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="18.5" cy="17.5" r="3.5" stroke="currentColor" stroke-width="2"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 6h3.5a1.5 1.5 0 011.5 1.5v0a1.5 1.5 0 01-1.5 1.5H15M9 6H5.5A1.5 1.5 0 004 7.5v0A1.5 1.5 0 005.5 9H9M12 6h3m-3 0H9M12 6v6m0 0v5.5"/>
+                </svg>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Mes vélos
+            </h1>
+            <p class="text-slate-400 mt-2 text-sm sm:text-base">
+                Cliquez sur un vélo pour accéder aux caractéristiques de sa batterie.
+            </p>
+        </header>
+
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Carte Vélo 1 : Maui Bronte -->
+            <a href="https://nickomorno.github.io/Velo/maui.html" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="group flex flex-col justify-between overflow-hidden rounded-2xl bg-slate-700/40 hover:bg-slate-700/80 border border-slate-600/50 hover:border-indigo-500/60 transition-all duration-300 ease-in-out shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transform hover:-translate-y-1">
+                
+                <!-- Zone Image -->
+                <div class="relative w-full h-48 bg-white p-4 flex items-center justify-center overflow-hidden border-b border-slate-600/40">
+                    <img src="Bronte.jpg" 
+                         alt="Maui Bronte" 
+                         class="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                         onerror="this.onerror=null; this.src='https://placehold.co/400x250/ffffff/334155?text=Maui+Bronte';">
+                </div>
+
+                <!-- Zone Contenu -->
+                <div class="p-5 flex flex-col justify-between flex-grow">
+                    <div>
+                        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-1">
+                            <span>Maui Bronte</span>
+                        </div>
+                        <h2 class="text-base font-bold text-slate-100 group-hover:text-indigo-300 transition-colors">
+                            Batterie du vélo Maui Bronte de 48V de 14Ah
+                        </h2>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-600/30 flex items-center justify-between text-xs font-medium text-slate-400 group-hover:text-slate-200">
+                        <span>Voir la batterie</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Carte Vélo 2 : ebgo CC50 -->
+            <a href="https://nickomorno.github.io/Velo/ebgo.html" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="group flex flex-col justify-between overflow-hidden rounded-2xl bg-slate-700/40 hover:bg-slate-700/80 border border-slate-600/50 hover:border-indigo-500/60 transition-all duration-300 ease-in-out shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transform hover:-translate-y-1">
+                
+                <!-- Zone Image -->
+                <div class="relative w-full h-48 bg-white p-4 flex items-center justify-center overflow-hidden border-b border-slate-600/40">
+                    <img src="cc50.jpg" 
+                         alt="ebgo CC50" 
+                         class="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                         onerror="this.onerror=null; this.src='https://placehold.co/400x250/ffffff/334155?text=ebgo+CC50';">
+                </div>
+
+                <!-- Zone Contenu -->
+                <div class="p-5 flex flex-col justify-between flex-grow">
+                    <div>
+                        <div class="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-1">
+                            <span>ebgo CC50</span>
+                        </div>
+                        <h2 class="text-base font-bold text-slate-100 group-hover:text-indigo-300 transition-colors">
+                            Batterie du vélo ebgo CC50 de 48V de 10Ah
+                        </h2>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-600/30 flex items-center justify-between text-xs font-medium text-slate-400 group-hover:text-slate-200">
+                        <span>Voir la batterie</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </div>
+                </div>
+            </a>
+
+        </section>
+
+        <footer class="mt-10 text-center text-xs text-slate-500">
+            <p>© Mes Vélos Électriques</p>
+        </footer>
+
+    </main>
+
+</body>
+</html>
