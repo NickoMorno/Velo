@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulation de charge - batterie Li-ion</title>
+<style>
+  :root {
+    --bg:#ffffff; --fg:#2b2a27; --muted:#898781; --grid:#e1e0d9; --red:#e34948;
+    --frame-bg: rgba(0,0,0,0.015);
+    --frame-border: var(--grid);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#1e1e1e; --fg:#e8e6e1; --muted:#a3a19c; --grid:#3a3a3a;
+      --frame-bg: rgba(255,255,255,0.025);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#1e1e1e; --fg:#e8e6e1; --muted:#a3a19c; --grid:#3a3a3a;
+    --frame-bg: rgba(255,255,255,0.025);
+  }
+  html,body { height:100%; margin:0; box-sizing:border-box; }
+  body { max-width:780px; margin:0 auto; background:var(--bg); color:var(--fg);
+         font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+         padding: max(12px, env(safe-area-inset-top,0px)) 16px max(12px, env(safe-area-inset-bottom,0px)); }
+
+  h1 { font-size:16px; font-weight:600; margin:0 0 10px;
+       display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  h1 .sub { font-size:11px; font-weight:400; color:var(--muted); }
+
+  .profile-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+                 padding:8px 12px; border:1px solid var(--grid); border-radius:6px;
+                 margin:0 0 10px; background:rgba(42,120,214,0.05); }
+  .profile-bar label { font-size:12px; font-weight:600; color:var(--fg); }
+  .profile-bar select { font-size:13px; padding:5px 8px; border:1px solid var(--grid);
+                        border-radius:6px; background:var(--bg); color:var(--fg);
+                        font-family:inherit; flex:0 1 auto; }
+  .profile-bar input[type="text"] { flex:1 1 160px; min-width:0; font-size:12px;
+                                    padding:5px 8px; border:1px solid var(--grid);
+                                    border-radius:6px; background:var(--bg);
+                                    color:var(--fg); font-family:inherit; }
+  .profile-bar .status { font-size:11px; color:var(--muted); white-space:nowrap; }
+
+  .framed {
+    border:1px solid var(--frame-border);
+    border-radius:8px;
+    background:var(--frame-bg);
+    padding:8px 12px 10px;
+    margin:0 0 10px;
+    min-width:0;
+  }
+  .framed > legend {
+    font-size:11.5px;
+    color:var(--muted);
+    padding:0 6px;
+    background-color:var(--bg);
+  }
+
+  .framed-pink {
+    background:rgba(227,73,72,0.10);
+    border-color:rgba(227,73,72,0.30);
+    border-left:4px solid #e34948;
+    padding:6px 14px 8px 10px;
+  }
+  .framed-pink > legend {
+    color:var(--muted);
+    background-color:var(--bg);
+  }
+
+  .controls {
+    display:grid;
+    grid-template-columns: 1fr 1fr 1.2fr 0.9fr;
+    gap:8px 10px;
+  }
+  .controls label { display:flex; flex-direction:column; font-size:11.5px; color:var(--muted); gap:3px;
+                    position:relative; min-width:0; }
+  .controls input, .controls select {
+    font-size:13px; padding:5px 8px; border:1px solid var(--grid);
+    border-radius:6px; background:var(--bg); color:var(--fg); font-family:inherit;
+    min-width:0;
+  }
+  .controls .hint { font-size:11px; color:var(--muted); font-weight:400; }
+  .controls .row { display:flex; align-items:center; gap:6px; min-width:0; }
+  .controls .row input { flex:1 1 auto; min-width:0; }
+  .controls .row .pct { flex:0 0 auto; white-space:nowrap;
+                        color:#008300; font-weight:600; font-size:11.5px; }
+
+  /* Zone R_int : estimation + saisie mesurée */
+  .rint-zone {
+    margin-top:10px;
+    padding:8px 10px;
+    background:rgba(0,0,0,0.02);
+    border-radius:6px;
+    font-size:11.5px;
+    color:var(--muted);
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+  }
+  .rint-zone .rint-val {
+    color:var(--fg);
+    font-weight:600;
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  }
+  .rint-zone .rint-uncertainty {
+    color:var(--muted);
+    font-style:italic;
+  }
+  .rint-zone .rint-toggle {
+    display:flex;
+    align-items:center;
+    gap:5px;
+    cursor:pointer;
+    user-select:none;
+    margin-left:auto;
+  }
+  .rint-zone .rint-toggle input { width:14px; height:14px; margin:0; cursor:pointer; }
+  .rint-zone .rint-measured {
+    display:flex;
+    align-items:center;
+    gap:5px;
+    margin-left:auto;
+  }
+  .rint-zone .rint-measured[hidden] { display:none; }
+  .rint-zone .rint-measured input {
+    width:80px;
+    font-size:12px;
+    padding:3px 6px;
+    border:1px solid #2a78d6;
+    border-radius:4px;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    font-weight:600;
+  }
+
+  @media (max-width: 640px) {
+    .controls { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 420px) {
+    .controls { grid-template-columns: 1fr; }
+  }
+
+  .result-bar {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:18px; flex-wrap:wrap;
+  }
+  .result-bar .rb-item {
+    display:flex; align-items:center; gap:8px;
+    min-width:0;
+  }
+  .result-bar .rb-label {
+    font-size:11.5px; color:var(--muted); white-space:nowrap;
+    display:flex; align-items:center; gap:4px;
+  }
+  .result-bar input[type="time"] {
+    font-size:13px; padding:4px 6px;
+    border:1px solid #e34948;
+    border-radius:4px;
+    background:#fffbe5;
+    color:#2b2a27;
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    font-weight:600;
+  }
+  .result-bar input[type="time"]:focus {
+    outline:2px solid rgba(227,73,72,0.35);
+    outline-offset:0;
+  }
+  .result-bar .rb-val {
+    font-size:19px; font-weight:700; color:#e34948;
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    letter-spacing:0.5px;
+    white-space:nowrap;
+  }
+  .result-bar .rb-val.empty { color:var(--muted); }
+
+  .lbl-row { display:inline-flex; align-items:center; gap:6px; }
+  .help-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:15px; height:15px; border-radius:50%;
+    border:1px solid var(--muted); background:var(--bg); color:var(--muted);
+    font-size:10px; font-weight:700; cursor:pointer; padding:0; line-height:1;
+    font-family:inherit;
+  }
+  .help-btn:hover { color:var(--fg); border-color:var(--fg); background:rgba(42,120,214,0.08); }
+  .help-pop {
+    position:absolute; top:calc(100% + 6px); left:0; z-index:30;
+    min-width:290px; max-width:min(92vw, 380px);
+    background:#2c2c2c; color:#f0f0f0;
+    border-radius:6px; padding:10px 12px;
+    font-size:11.5px; line-height:1.6; font-weight:400;
+    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    font-style:normal;
+  }
+  .help-pop[hidden] { display:none; }
+  .help-pop::before {
+    content:''; position:absolute; top:-5px; left:14px;
+    width:10px; height:10px; background:#2c2c2c;
+    transform:rotate(45deg);
+  }
+  .help-pop.right { left:auto; right:0; }
+  .help-pop.right::before { left:auto; right:14px; }
+  .help-pop .hp-title { font-weight:700; font-size:12.5px; color:#ffffff; margin-bottom:6px; }
+  .help-pop .hp-list { margin:0; padding:0 0 0 4px; list-style:none; }
+  .help-pop .hp-list li { margin:4px 0; padding-left:14px; position:relative; }
+  .help-pop .hp-list li::before { content:'•'; position:absolute; left:0; top:0; color:#f0f0f0; }
+  .help-pop .hp-list b { color:#ffffff; font-weight:600; }
+  .help-pop code { background:rgba(255,255,255,0.10); padding:1px 4px; border-radius:3px;
+                   font-family:inherit; font-size:11px; color:#ffd479; }
+  .help-pop .hp-examples {
+    margin-top:7px; padding-top:7px;
+    border-top:1px solid rgba(255,255,255,0.12);
+    color:#c8c8c8; font-size:11px; line-height:1.7;
+  }
+  .help-pop .hp-examples div { white-space:nowrap; }
+  .help-pop .hp-examples em { font-style:normal; color:#ffd479; }
+
+  .mini { flex:0 0 auto; font-size:11px; padding:4px 7px; border-radius:5px;
+          border:1px solid var(--grid); background:var(--bg); color:var(--muted);
+          cursor:pointer; white-space:nowrap; font-family:inherit; }
+  .mini:hover { color:var(--fg); border-color:#2a78d6; }
+
+  .wrap { position:relative; width:100%; height:26vh; min-height:200px; max-height:300px; }
+
+  .chart-legend-overlay {
+    position:absolute;
+    bottom:38px;
+    left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center; gap:14px;
+    padding:4px 12px;
+    background:rgba(240,240,240,0.95);
+    border:1px solid var(--grid);
+    border-radius:4px;
+    font-size:11px;
+    color:#3a3a3a;
+    pointer-events:none;
+    z-index:5;
+    white-space:nowrap;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .chart-legend-overlay {
+      background:rgba(50,50,50,0.95);
+      color:#e8e6e1;
+    }
+  }
+  :root[data-theme="dark"] .chart-legend-overlay {
+    background:rgba(50,50,50,0.95);
+    color:#e8e6e1;
+  }
+  .chart-legend-overlay .cl-item { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .chart-legend-overlay .cl-sq {
+    width:11px; height:11px; border-radius:2px; flex:0 0 auto; display:inline-block;
+  }
+  .chart-legend-overlay .cl-dash {
+    width:16px; height:0; flex:0 0 auto; display:inline-block;
+    border-top:2px dashed #6fbf73;
+  }
+
+  .result-compact {
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:6px 18px;
+    padding:10px 14px;
+    margin:0 0 12px;
+    background:rgba(0,131,0,0.06);
+    border:1px solid rgba(0,131,0,0.20);
+    border-left:4px solid #008300;
+    border-radius:6px;
+    font-size:13px;
+  }
+  .result-compact .rc-cell { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .result-compact .rc-label { font-size:11px; color:var(--muted); white-space:nowrap; }
+  .result-compact .rc-val {
+    font-size:13px; font-weight:600; color:var(--fg);
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .result-compact.err {
+    background:rgba(227,73,72,0.08);
+    border-color:rgba(227,73,72,0.30);
+    border-left-color:#e34948;
+  }
+  .result-compact.err .rc-cell { grid-column:1 / -1; color:#e34948; font-weight:600; }
+  @media (max-width: 560px) {
+    .result-compact { grid-template-columns: 1fr 1fr; }
+  }
+
+  .modes { border:1px solid var(--grid); border-radius:6px; padding:6px 12px 8px;
+           margin:0 0 12px; }
+  .modes legend { font-size:11.5px; color:var(--muted); padding:0 6px; }
+  .modes .mode-row { display:flex; align-items:center; gap:8px;
+                     padding:2px 0; flex-wrap:wrap; }
+  .modes .mode-row > input[type="radio"] {
+    margin:0; width:15px; height:15px; cursor:pointer; flex:0 0 auto;
+  }
+  .modes .mode-row > label { flex:1 1 auto; font-size:12.5px; cursor:pointer; }
+  .modes .mode-chips { display:inline-flex; gap:5px; flex:0 0 auto; }
+  .modes .chip {
+    width:56px; font-size:11px; padding:2px 4px; text-align:center;
+    border:1px solid var(--grid); border-radius:4px;
+    background:rgba(0,0,0,0.03); color:var(--muted);
+    font-family:inherit;
+  }
+  .modes .chip:disabled { cursor:not-allowed; opacity:0.9; }
+  .modes .chip.editable {
+    background:var(--bg); color:var(--fg);
+    border-color:#2a78d6; font-weight:600; cursor:text;
+  }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;
+          max-height:240px; overflow-y:auto; display:block; }
+  table[hidden] { display:none; }
+  th,td { text-align:right; padding:4px 8px; border-bottom:1px solid var(--grid); }
+  th:first-child, td:first-child { text-align:left; }
+
+  .tbl-toggle { display:flex; align-items:center; gap:8px;
+                margin-top:10px; font-size:12.5px; cursor:pointer; color:var(--fg); }
+  .tbl-toggle input { width:16px; height:16px; margin:0; cursor:pointer; }
+
+  .actions-details {
+    margin-top:10px;
+    border:1px solid var(--grid);
+    border-radius:6px;
+    background:var(--bg);
+  }
+  .actions-details summary {
+    padding:6px 12px;
+    font-size:12px;
+    color:var(--muted);
+    cursor:pointer;
+    list-style:none;
+    user-select:none;
+    display:flex; align-items:center; gap:6px;
+  }
+  .actions-details summary::-webkit-details-marker { display:none; }
+  .actions-details summary::before {
+    content:'▶';
+    font-size:9px;
+    transition:transform 0.15s;
+    color:var(--muted);
+  }
+  .actions-details[open] summary::before { transform:rotate(90deg); }
+  .actions-details summary:hover { color:var(--fg); }
+  .actions-details .actions-body {
+    display:flex; flex-wrap:wrap; gap:8px;
+    padding:8px 12px 10px;
+    border-top:1px solid var(--grid);
+  }
+  .btn { font-size:12px; padding:5px 10px; border-radius:6px;
+         border:1px solid var(--grid); background:var(--bg); color:var(--fg); cursor:pointer; }
+</style>
+</head>
+<body>
+
+<h1>
+  Simulation de charge d'une batterie Li-ion
+  <span class="sub">Modèle CC/CV calibré · 8 méthodes de calcul · 5 profils de batterie</span>
+</h1>
+
+<div class="profile-bar">
+  <label for="profile">Profil :</label>
+  <select id="profile">
+    <option value="1">Batterie #1</option>
+    <option value="2">Batterie #2</option>
+    <option value="3">Batterie #3</option>
+    <option value="4">Batterie #4</option>
+    <option value="5">Batterie #5</option>
+  </select>
+  <input type="text" id="profileComment" maxlength="60"
+         placeholder="Commentaire (ex : batterie de mon vélo bleu)">
+  <span class="status" id="profileStatus"></span>
+</div>
+
+<fieldset class="framed">
+  <legend>Configurations techniques</legend>
+  <div class="controls">
+    <label>Tension nominale
+      <select id="vNom">
+        <option value="36">36V</option>
+        <option value="48" selected>48V</option>
+        <option value="52">52V</option>
+      </select>
+    </label>
+    <label>Tension initiale mesurée (V)
+      <div class="row">
+        <input type="number" id="vBatt" value="42.1" step="0.1" min="30" max="54.6">
+        <span class="pct" id="vBattPct"></span>
+      </div>
+    </label>
+    <label>Tension fin de charge souhaitée (V)
+      <div class="row">
+        <input type="number" id="vEnd" value="54.1" step="0.1" min="30" max="54.6">
+        <span class="pct" id="vEndPct"></span>
+      </div>
+    </label>
+    <label>Capacité batterie (Ah)
+      <input type="number" id="capacity" value="14" step="0.5" min="1" max="200">
+    </label>
+
+    <label id="iChgLabel">
+      <span class="lbl-row">
+        Courant chargeur DC (A)
+        <button type="button" class="help-btn" id="iChgHelpBtn"
+                aria-label="Aide sur la valeur à entrer" aria-describedby="iChgHelpPop">?</button>
+      </span>
+      <input type="number" id="iChg" value="3.00" step="0.01" min="0.01" max="20">
+      <span class="help-pop" id="iChgHelpPop" hidden role="tooltip">
+        <div class="hp-title">Quoi entrer ici ?</div>
+        <ul class="hp-list">
+          <li>Si vous avez <b>mesuré</b> le courant avec un ampèremètre, entrez la valeur mesurée.</li>
+          <li>Si vous n'avez <b>pas d'ampèremètre</b>, alors lisez l'étiquette sur le chargeur : la valeur à inscrire doit être typiquement <code>~93 %</code> de la valeur imprimée.</li>
+        </ul>
+        <div class="hp-examples">
+          <div>Exemple : étiquette 3,0 A → entrez environ <em>2,8 A</em>.</div>
+          <div>Exemple : étiquette 4,0 A → entrez environ <em>3,7 A</em>.</div>
+          <div>Exemple : étiquette 5,0 A → entrez environ <em>4,6 A</em>.</div>
+        </div>
+      </span>
+    </label>
+
+    <label id="iAc120Label">
+      <span class="lbl-row">
+        Courant 120V AC (A)
+        <button type="button" class="help-btn" id="iAc120HelpBtn"
+                aria-label="Aide sur la valeur à entrer" aria-describedby="iAc120HelpPop">?</button>
+      </span>
+      <input type="number" id="iAc120" value="1.32" step="0.01" min="0.01" max="20">
+      <span class="help-pop right" id="iAc120HelpPop" hidden role="tooltip">
+        <div class="hp-title">Quoi entrer ici ?</div>
+        <ul class="hp-list">
+          <li>Si vous ne connaissez pas l'<b>ampérage DC</b> de la sortie de votre chargeur et que vous connaissez l'<b>ampérage AC</b> que consomme l'entrée de votre chargeur, inscrivez-le ici.</li>
+        </ul>
+      </span>
+    </label>
+
+    <label id="batteryAgeLabel">
+      <span class="lbl-row">
+        Âge de la batterie
+        <button type="button" class="help-btn" id="batteryAgeHelpBtn"
+                aria-label="Aide sur l'âge" aria-describedby="batteryAgeHelpPop">?</button>
+      </span>
+      <select id="batteryAge">
+        <option value="new">Neuve (moins de 6 mois)</option>
+        <option value="recent">Récente (6 mois - 2 ans)</option>
+        <option value="old" selected>Ancienne (2 - 4 ans)</option>
+        <option value="very_old">Très ancienne (plus de 4 ans)</option>
+      </select>
+      <span class="help-pop right" id="batteryAgeHelpPop" hidden role="tooltip">
+        <div class="hp-title">Âge de la batterie</div>
+        <ul class="hp-list">
+          <li>L'âge est utilisé pour <b>estimer la résistance interne</b> du pack (R_int).</li>
+          <li>La résistance interne augmente fortement avec le vieillissement : elle conditionne la chute de tension <code>I × R_int</code> et donc le moment de la bascule CC→CV.</li>
+          <li>Si vous connaissez la <b>valeur mesurée</b> de R_int, cochez la case en dessous pour l'utiliser à la place de l'estimation.</li>
+        </ul>
+      </span>
+    </label>
+
+    <label id="etaLabel">
+      <span class="lbl-row">
+        Rendement global (η)
+        <button type="button" class="help-btn" id="etaHelpBtn"
+                aria-label="Aide sur le rendement" aria-describedby="etaHelpPop">?</button>
+      </span>
+      <div class="row">
+        <input type="number" id="eta" value="0.85" step="0.01" min="0.1" max="1.0">
+        <button type="button" class="mini" id="etaRecoBtn" title="Utiliser la valeur recommandée par la méthode active">Reco</button>
+      </div>
+      <span class="help-pop" id="etaHelpPop" hidden role="tooltip">
+        <div class="hp-title">Rendement global (η)</div>
+        <ul class="hp-list">
+          <li>Ce coefficient (0–1) absorbe <b>toutes les pertes système</b> entre le secteur et la batterie :</li>
+          <li>• chaleur dissipée dans les câbles, le BMS, les connecteurs</li>
+          <li>• pertes du chargeur (conversion AC → DC)</li>
+          <li>• vieillissement de la batterie (capacité réelle &lt; capacité étiquetée)</li>
+          <li>Ce n'est <b>PAS</b> le rendement coulombique de la cellule (celui-ci est proche de 0,99).</li>
+          <li>Il allonge proportionnellement la durée de charge : <code>t = Ah / (I × η)</code>.</li>
+        </ul>
+      </span>
+    </label>
+  </div>
+
+  <!-- Zone R_int : estimation + possibilité de saisir une valeur mesurée -->
+  <div class="rint-zone">
+    <span id="rintEstimateText">R_int estimée : ...</span>
+    <label class="rint-toggle">
+      <input type="checkbox" id="useMeasuredRint">
+      R_int mesurée
+    </label>
+    <span class="rint-measured" id="rintMeasuredRow" hidden>
+      <input type="number" id="measuredRint" value="583" step="10" min="0" max="2000">
+      <span>mΩ</span>
+    </span>
+  </div>
+</fieldset>
+
+<fieldset class="framed framed-pink">
+  <legend>Détails temporels</legend>
+  <div class="result-bar">
+    <div class="rb-item">
+      <span class="rb-label">⏱ Heure de début</span>
+      <input type="time" id="startTime" value="08:00:00" step="1">
+    </div>
+    <div class="rb-item">
+      <span class="rb-label">Heure de fin estimée</span>
+      <span class="rb-val" id="quickEndTime">--:--:--</span>
+    </div>
+    <div class="rb-item">
+      <span class="rb-label">Durée totale</span>
+      <span class="rb-val" id="quickTotal">--:--:--</span>
+    </div>
+  </div>
+</fieldset>
+
+<fieldset class="framed">
+  <legend>Graphique prévisionnel</legend>
+  <div class="wrap">
+    <canvas id="chart"></canvas>
+    <div class="chart-legend-overlay">
+      <span class="cl-item"><span class="cl-sq" style="background:#e34948"></span>Courant DC</span>
+      <span class="cl-item"><span class="cl-sq" style="background:#008300"></span>Tension aux bornes</span>
+      <span class="cl-item"><span class="cl-dash"></span>Tension à vide (V_oc)</span>
+    </div>
+  </div>
+</fieldset>
+
+<div class="result-compact" id="resultCompact">
+  <div class="rc-cell"><span class="rc-label">Pack</span><span class="rc-val" id="rcPack">—</span></div>
+  <div class="rc-cell"><span class="rc-label">Bascule CC→CV</span><span class="rc-val" id="rcSocCC">—</span></div>
+  <div class="rc-cell"><span class="rc-label">Phase CC</span><span class="rc-val" id="rcCC">—</span></div>
+  <div class="rc-cell"><span class="rc-label">Charge</span><span class="rc-val" id="rcCharge">—</span></div>
+  <div class="rc-cell"><span class="rc-label">Cutoff</span><span class="rc-val" id="rcCutoff">—</span></div>
+  <div class="rc-cell"><span class="rc-label">Phase CV</span><span class="rc-val" id="rcCV">—</span></div>
+</div>
+
+<fieldset class="modes">
+  <legend>Méthode de calcul</legend>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="ebgo" id="modeEbgo">
+    <label for="modeEbgo">Vélo Ebgo de Nicko Morno (batterie 10Ah et chargeur 4,8A)</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="17" disabled title="cutoff">
+      <input type="text" class="chip" value="0.85" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="maui" id="modeMaui">
+    <label for="modeMaui">Vélo Maui de Nicko Morno (batterie 14Ah et chargeur 2,78A)</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="10" disabled title="cutoff">
+      <input type="text" class="chip" value="0.85" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="ia" id="modeIa" checked>
+    <label for="modeIa">Basée sur les règles théoriques de Deepseek</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="20" disabled title="cutoff">
+      <input type="text" class="chip" value="0.85" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="gemini" id="modeGemini">
+    <label for="modeGemini">Basée sur les règles théoriques de Gemini</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="20" disabled title="cutoff">
+      <input type="text" class="chip" value="0.85" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="grok" id="modeGrok">
+    <label for="modeGrok">Basée sur les règles théoriques de Grok</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="13" disabled title="cutoff">
+      <input type="text" class="chip" value="0.93" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="claude" id="modeClaude">
+    <label for="modeClaude">Basée sur les règles théoriques de Claude</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="15" disabled title="cutoff">
+      <input type="text" class="chip" value="0.97" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="chatgpt" id="modeChatgpt">
+    <label for="modeChatgpt">Basée sur les règles théoriques de ChatGPT</label>
+    <span class="mode-chips">
+      <input type="text" class="chip" value="20" disabled title="cutoff">
+      <input type="text" class="chip" value="1.00" disabled title="ηReco">
+    </span>
+  </div>
+
+  <div class="mode-row">
+    <input type="radio" name="mode" value="manual" id="modeManual">
+    <label for="modeManual">Basée sur une méthode manuelle (pour votre chargeur et batterie)</label>
+    <span class="mode-chips">
+      <input type="number" id="manCutoff" class="chip editable" value="20"
+             min="2" max="100" step="1" title="cutoff — éditable">
+      <input type="text" class="chip" value="0.85" disabled title="ηReco">
+    </span>
+  </div>
+</fieldset>
+
+<label class="tbl-toggle">
+  <input type="checkbox" id="toggleTbl">
+  Table de vérification (échantillon)
+</label>
+<table id="tbl" hidden>
+  <thead>
+    <tr>
+      <th>Heure</th>
+      <th>I DC (A)</th>
+      <th>V bornes (V)</th>
+      <th>V à vide (V)</th>
+      <th>%</th>
+      <th>Phase</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<details class="actions-details">
+  <summary>Actions sur le profil</summary>
+  <div class="actions-body">
+    <button class="btn" id="resetBtn">Réinitialiser ce profil</button>
+    <button class="btn" id="resetAllBtn">Effacer tous les profils</button>
+  </div>
+</details>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// =============================================================
+//  Constantes de conversion DC ↔ AC
+// =============================================================
+const AC_VOLT = 120;
+const PF_ETA  = 0.80;
+
+function dcToAc(iDC, vBatt) {
+  if (!isFinite(iDC) || !isFinite(vBatt) || vBatt <= 0) return 0;
+  return iDC * vBatt / (PF_ETA * AC_VOLT);
+}
+function acToDc(iAC, vBatt) {
+  if (!isFinite(iAC) || !isFinite(vBatt) || vBatt <= 0) return 0;
+  return iAC * PF_ETA * AC_VOLT / vBatt;
+}
+
+// =============================================================
+//  Estimation de la résistance interne
+//  Base neuve : capacité × 15 mΩ (pour 48V / 13S)
+//  Ajustée selon le nombre de cellules en série
+//  Facteurs d'âge : la R_int augmente fortement avec le temps
+// =============================================================
+const AGE_FACTORS = {
+  new:       1.0,
+  recent:    1.6,
+  old:       2.5,
+  very_old:  4.0
+};
+
+function cellsForVNom(vNom) {
+  if (vNom <= 36) return 10;
+  if (vNom <= 48) return 13;
+  return 14;
+}
+
+function estimateRInt(capacity, vNom, age) {
+  if (!isFinite(capacity) || capacity <= 0) return 400;
+  const factor = AGE_FACTORS[age] || 2.5;
+  const cells  = cellsForVNom(vNom);
+  const base   = capacity * 15 * (cells / 13);
+  return Math.round(base * factor);
+}
+
+function getEffectiveRInt() {
+  const useMeasured = document.getElementById('useMeasuredRint').checked;
+  if (useMeasured) {
+    const v = parseFloat(document.getElementById('measuredRint').value);
+    return isFinite(v) && v > 0 ? v : 400;
+  }
+  const capacity = parseFloat(document.getElementById('capacity').value) || 14;
+  const vNom     = parseFloat(document.getElementById('vNom').value)     || 48;
+  const age      = document.getElementById('batteryAge').value          || 'old';
+  return estimateRInt(capacity, vNom, age);
+}
+
+// =============================================================
+//  Profils
+// =============================================================
+const PROFILES = ['1', '2', '3', '4', '5'];
+const DEFAULT_PROFILE = '1';
+
+const NOM_DEFAULTS = {
+  '36': { vBatt: 33,   vEnd: 42   },
+  '48': { vBatt: 42.1, vEnd: 54.1 },
+  '52': { vBatt: 45,   vEnd: 58   }
+};
+
+// =============================================================
+//  Cookies
+// =============================================================
+const COOKIE_DAYS = 365;
+function setCookie(name, value) {
+  const d = new Date();
+  d.setTime(d.getTime() + COOKIE_DAYS * 864e5);
+  document.cookie = name + '=' + encodeURIComponent(value) +
+                    ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
+}
+function getCookie(name) {
+  const parts = ('; ' + document.cookie).split('; ' + name + '=');
+  return parts.length === 2 ? decodeURIComponent(parts.pop().split(';').shift()) : null;
+}
+function eraseCookie(name) {
+  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax';
+}
+
+const FIELD_IDS = ['vNom', 'vBatt', 'vEnd', 'iChg', 'iAc120', 'capacity',
+                   'batteryAge', 'useMeasuredRint', 'measuredRint',
+                   'eta', 'startTime', 'comment', 'manCutoff'];
+
+const DEFAULTS = {
+  vNom: '48', vBatt: '42.1', vEnd: '54.1',
+  iChg: '3.00', iAc120: '1.32', capacity: '14',
+  batteryAge: 'old', useMeasuredRint: '0', measuredRint: '583',
+  eta: '0.85', startTime: '08:00:00',
+  mode: 'ia', comment: '',
+  manCutoff: '20'
+};
+
+function cookieKeyFor(profile, id) {
+  return 'sim_p' + profile + '_' + id;
+}
+
+function getSelectedProfile() {
+  return document.getElementById('profile').value || DEFAULT_PROFILE;
+}
+function getSelectedMode() {
+  const el = document.querySelector('input[name="mode"]:checked');
+  return el ? el.value : 'ia';
+}
+function setSelectedMode(v) {
+  const el = document.querySelector('input[name="mode"][value="' + v + '"]');
+  if (el) el.checked = true;
+}
+
+function readFieldForProfile(profile, id) {
+  const v = getCookie(cookieKeyFor(profile, id));
+  return (v !== null && v !== '') ? v : null;
+}
+function writeFieldForProfile(profile, id, value) {
+  setCookie(cookieKeyFor(profile, id), value);
+}
+
+function profileLabel(profile) {
+  const c = readFieldForProfile(profile, 'comment');
+  return 'Batterie #' + profile + (c ? ' (' + c + ')' : '');
+}
+function refreshProfileOptions() {
+  const sel = document.getElementById('profile');
+  PROFILES.forEach(p => {
+    const opt = sel.querySelector('option[value="' + p + '"]');
+    if (opt) opt.textContent = profileLabel(p);
+  });
+}
+
+let lastEditedAmp = 'dc';
+
+function applyProfileToDom(profile) {
+  let anyFound = false;
+  FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id === 'comment' ? 'profileComment' : id);
+    if (!el) return;
+    const v = readFieldForProfile(profile, id);
+    if (v !== null) {
+      if (el.type === 'checkbox') el.checked = (v === '1' || v === 'true');
+      else el.value = v;
+      anyFound = true;
+    } else {
+      if (el.type === 'checkbox') el.checked = (DEFAULTS[id] === '1');
+      else el.value = DEFAULTS[id];
+    }
+  });
+  const m = readFieldForProfile(profile, 'mode');
+  setSelectedMode(m && MODES[m] ? m : DEFAULTS.mode);
+
+  lastEditedAmp = 'dc';
+  syncAcFromDc();
+  updateRintUI();
+
+  return anyFound;
+}
+
+function saveCurrentProfile() {
+  const p = getSelectedProfile();
+  FIELD_IDS.forEach(id => {
+    if (id === 'comment') {
+      writeFieldForProfile(p, 'comment', document.getElementById('profileComment').value);
+    } else {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') writeFieldForProfile(p, id, el.checked ? '1' : '0');
+      else writeFieldForProfile(p, id, el.value);
+    }
+  });
+  writeFieldForProfile(p, 'mode', getSelectedMode());
+  updateProfileStatus();
+}
+function eraseProfile(profile) {
+  FIELD_IDS.concat(['mode']).forEach(id => eraseCookie(cookieKeyFor(profile, id)));
+}
+function eraseAllProfiles() {
+  PROFILES.forEach(eraseProfile);
+}
+function updateProfileStatus() {
+  const p = getSelectedProfile();
+  const anyCookie = FIELD_IDS.concat(['mode']).some(id => readFieldForProfile(p, id) !== null);
+  document.getElementById('profileStatus').textContent =
+    anyCookie ? '● enregistré' : '○ vierge';
+}
+
+// =============================================================
+//  Table tension → % de charge (Li-ion, référence 13S)
+// =============================================================
+const REF_CELLS = 13;
+const REF_SOC_V = [39.2, 39.3, 39.5, 39.6, 39.8, 39.9, 40.1, 40.2, 40.4, 40.6, 40.7, 40.9, 41.0, 41.2, 41.3, 41.5, 41.7, 41.8, 42.0, 42.1, 42.3, 42.4, 42.6, 42.7, 42.9, 43.1, 43.2, 43.4, 43.5, 43.7, 43.8, 44.0, 44.1, 44.3, 44.5, 44.6, 44.8, 44.9, 45.1, 45.2, 45.4, 45.6, 45.7, 45.9, 46.0, 46.2, 46.3, 46.5, 46.6, 46.8, 47.0, 47.1, 47.3, 47.4, 47.6, 47.7, 47.9, 48.0, 48.2, 48.4, 48.5, 48.7, 48.8, 49.0, 49.1, 49.3, 49.5, 49.6, 49.8, 49.9, 50.1, 50.2, 50.4, 50.5, 50.7, 50.9, 51.0, 51.2, 51.3, 51.5, 51.6, 51.8, 51.9, 52.1, 52.3, 52.4, 52.6, 52.7, 52.9, 53.0, 53.2, 53.4, 53.5, 53.7, 53.8, 54.0, 54.1, 54.3, 54.4, 54.6];
+const socP = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
+
+let currentCells = REF_CELLS;
+let currentSocV  = REF_SOC_V.slice();
+
+function updateSocTable(cells) {
+  currentCells = cells;
+  const f = cells / REF_CELLS;
+  currentSocV = REF_SOC_V.map(v => +(v * f).toFixed(3));
+}
+function voltsToPercent(v) {
+  const socV = currentSocV;
+  if (v <= socV[0]) return socP[0];
+  if (v >= socV[socV.length - 1]) return 100;
+  for (let i = 0; i < socV.length - 1; i++) {
+    if (v <= socV[i + 1])
+      return socP[i] + (socP[i + 1] - socP[i]) * (v - socV[i]) / (socV[i + 1] - socV[i]);
+  }
+  return 100;
+}
+function percentToVolts(p) {
+  const socV = currentSocV;
+  if (p <= socP[0]) return socV[0];
+  if (p >= 100) return socV[socV.length - 1];
+  for (let i = 0; i < socP.length - 1; i++) {
+    if (p <= socP[i + 1])
+      return socV[i] + (socV[i + 1] - socV[i]) * (p - socP[i]) / (socP[i + 1] - socP[i]);
+  }
+  return socV[socV.length - 1];
+}
+
+function claudeSocCCend(iChg, capacity) {
+  if (iChg <= 0 || capacity <= 0) return 90;
+  const cRate = iChg / capacity;
+  let soc;
+  if (cRate <= 0.2) {
+    soc = 90;
+  } else if (cRate <= 0.3) {
+    soc = 90 + (cRate - 0.3 + 0.1) / 0.1 * (85 - 90);
+  } else if (cRate <= 0.5) {
+    soc = 85 + (cRate - 0.3) / (0.5 - 0.3) * (80 - 85);
+  } else {
+    soc = 80;
+  }
+  return Math.max(75, Math.min(95, soc));
+}
+
+function manualCutoff() {
+  const el = document.getElementById('manCutoff');
+  const v = parseFloat(el ? el.value : 20);
+  return isFinite(v) ? Math.max(2, Math.min(100, v)) : 20;
+}
+
+// =============================================================
+//  8 méthodes de calcul
+//  Les modes ne définissent plus la R_int. Ils gardent uniquement
+//  le cutoff et le η recommandé. La R_int vient du profil.
+// =============================================================
+const MODES = {
+  ebgo:    { label: 'Vélo Ebgo de Nicko Morno (batterie 10Ah et chargeur 4,8A)',
+             cutoff: 17, etaReco: 0.85, dynamic: '' },
+  maui:    { label: 'Vélo Maui de Nicko Morno (batterie 14Ah et chargeur 2,78A)',
+             cutoff: 10, etaReco: 0.85, dynamic: '' },
+  ia:      { label: 'Basée sur les règles théoriques de Deepseek',
+             cutoff: 20, etaReco: 0.85, dynamic: '' },
+  gemini:  { label: 'Basée sur les règles théoriques de Gemini',
+             cutoff: 20, etaReco: 0.85, dynamic: '' },
+  grok:    { label: 'Basée sur les règles théoriques de Grok',
+             cutoff: 13, etaReco: 0.93, dynamic: '' },
+  claude:  { label: 'Basée sur les règles théoriques de Claude',
+             socCCendFn: claudeSocCCend, cutoff: 15, etaReco: 0.97, dynamic: 'C-rate' },
+  chatgpt: { label: 'Basée sur les règles théoriques de ChatGPT',
+             cutoff: 20, etaReco: 1.00, dynamic: '' },
+  manual:  { label: 'Basée sur une méthode manuelle (pour votre chargeur et batterie)',
+             cutoff: manualCutoff, etaReco: 0.85, dynamic: 'manual' }
+};
+
+function getCutoff(mode) {
+  const m = MODES[mode] || MODES.ia;
+  return typeof m.cutoff === 'function' ? m.cutoff() : m.cutoff;
+}
+function getSocCCend(mode, iChg, vEnd, capacity, rInt_mOhm) {
+  const m = MODES[mode] || MODES.ia;
+  if (m.socCCendFn) return m.socCCendFn(iChg, capacity);
+  const rInt_ohm = rInt_mOhm / 1000;
+  const vocThreshold = vEnd - iChg * rInt_ohm;
+  return voltsToPercent(vocThreshold);
+}
+
+const pad2 = n => String(n).padStart(2, '0');
+function fmtTime(s) {
+  s = Math.round(s);
+  const d = ((s % 86400) + 86400) % 86400;
+  return pad2(Math.floor(d / 3600)) + ':' + pad2(Math.floor(d % 3600 / 60)) + ':' + pad2(d % 60);
+}
+function fmtTimeShort(s) {
+  s = Math.round(s);
+  const d = ((s % 86400) + 86400) % 86400;
+  return pad2(Math.floor(d / 3600)) + ':' + pad2(Math.floor(d % 3600 / 60));
+}
+function fmtDuration(s) {
+  s = Math.round(s);
+  return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s % 3600 / 60)) + ':' + pad2(s % 60);
+}
+function parseTime(str) {
+  const p = (str || '').split(':').map(Number);
+  return (p[0] || 0) * 3600 + (p[1] || 0) * 60 + (p[2] || 0);
+}
+
+function simulate({ vBatt, iChg, capacity, startSec, vEnd, mode, eta, rInt_mOhm }) {
+  const m = MODES[mode] || MODES.ia;
+  const socStart = voltsToPercent(vBatt);
+  const socEnd   = Math.min(100, voltsToPercent(vEnd));
+
+  if (socEnd <= socStart || iChg <= 0 || capacity <= 0 || eta <= 0) {
+    return { points: [], tTotal: 0, endSec: startSec, socStart, socEnd,
+             tCC_h: 0, tCV_h: 0, feasible: false, mode, socCCend: 0, cutoff: 0,
+             rInt: rInt_mOhm, vEnd };
+  }
+
+  const rInt_ohm  = rInt_mOhm / 1000;
+  const socCCendVal = getSocCCend(mode, iChg, vEnd, capacity, rInt_mOhm);
+  const cutoffVal   = getCutoff(mode);
+
+  const socCCend = Math.max(socStart, Math.min(socCCendVal, socEnd));
+  const tCC_h = (socCCend - socStart) / 100 * capacity / (iChg * eta);
+
+  let tCV_h = 0, tau_h = 1;
+  const dSocCV = socEnd - socCCend;
+  if (dSocCV > 0) {
+    tau_h = dSocCV * capacity / (100 * iChg * eta * (1 - 1 / cutoffVal));
+    tCV_h = tau_h * Math.log(cutoffVal);
+  }
+
+  const tTotal_h = tCC_h + tCV_h;
+  const tTotal_s = tTotal_h * 3600;
+
+  const N = 250;
+  const points = [];
+  for (let i = 0; i <= N; i++) {
+    const t_h  = i / N * tTotal_h;
+    const tSec = startSec + t_h * 3600;
+    let soc, iDC, isCC;
+    if (tCC_h > 0 && t_h <= tCC_h) {
+      soc = socStart + (socCCend - socStart) * (t_h / tCC_h);
+      iDC = iChg;
+      isCC = true;
+    } else if (tCV_h > 0) {
+      const tcv   = t_h - tCC_h;
+      const decay = Math.exp(-tcv / tau_h);
+      iDC = iChg * decay;
+      soc = socCCend + dSocCV * (1 - decay) / (1 - Math.exp(-tCV_h / tau_h));
+      isCC = false;
+    } else {
+      soc = socEnd; iDC = 0;
+      isCC = false;
+    }
+    const voc = percentToVolts(soc);
+    const vTerm = isCC ? (voc + iDC * rInt_ohm) : vEnd;
+    points.push({ t: tSec, iDC, v: vTerm, voc, soc });
+  }
+
+  return { points, tTotal: tTotal_s, endSec: startSec + tTotal_s,
+           socStart, socEnd, tCC_h, tCV_h, feasible: true, mode,
+           socCCend: socCCendVal, cutoff: cutoffVal, rInt: rInt_mOhm, vEnd };
+}
+
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const socLabelsPlugin = {
+  id: 'socLabels',
+  afterDraw(chart) {
+    const axis = chart.scales.yV;
+    if (!axis) return;
+    const c = chart.ctx;
+    c.save();
+    c.font = Chart.helpers.toFont(axis.options.ticks.font).string;
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    const x = axis.left + axis.options.ticks.padding;
+    axis.ticks.forEach(t => {
+      const y = axis.getPixelForValue(t.value);
+      const vStr = t.value.toFixed(1).replace('.', ',') + 'V ';
+      c.fillStyle = '#898781';
+      c.fillText(vStr, x, y);
+      c.fillStyle = dark ? '#3fb950' : '#008300';
+      c.fillText('(' + Math.round(voltsToPercent(t.value)) + '%)',
+                 x + c.measureText(vStr).width, y);
+    });
+    c.restore();
+  }
+};
+
+let chart = null;
+
+function niceCeil(v) {
+  const steps = [
+    0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10,
+    12, 15, 20, 25, 30, 40, 50, 60, 80, 100
+  ];
+  for (const s of steps) if (s >= v) return s;
+  return Math.ceil(v / 50) * 50;
+}
+function niceVStep(range) {
+  if (range <= 4)  return 0.5;
+  if (range <= 8)  return 1;
+  if (range <= 15) return 2;
+  return 4;
+}
+
+function createChart(sim, params) {
+  if (chart) { chart.destroy(); chart = null; }
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  if (!sim.points.length) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+  const points = sim.points;
+  const tMin = points[0].t;
+  const tMax = points[points.length - 1].t;
+
+  const dur = tMax - tMin;
+  let step_s;
+  if      (dur <=  1800) step_s =  300;
+  else if (dur <=  3600) step_s =  600;
+  else if (dur <=  7200) step_s =  900;
+  else if (dur <= 14400) step_s = 1800;
+  else if (dur <= 28800) step_s = 3600;
+  else if (dur <= 57600) step_s = 7200;
+  else                   step_s = 14400;
+
+  const xTicksSet = new Set();
+  const firstTick = Math.ceil(tMin / step_s) * step_s;
+  for (let t = firstTick; t <= tMax + step_s * 0.5; t += step_s) {
+    xTicksSet.add(Math.round(t / 60) * 60);
+  }
+  const bMin = Math.round(tMin / 60) * 60;
+  const bMax = Math.round(tMax / 60) * 60;
+  const threshold = step_s / 3;
+  for (const t of [...xTicksSet]) {
+    if (Math.abs(t - bMin) < threshold) xTicksSet.delete(t);
+    if (Math.abs(t - bMax) < threshold) xTicksSet.delete(t);
+  }
+  xTicksSet.add(bMin);
+  xTicksSet.add(bMax);
+  const xTicks = Array.from(xTicksSet).sort((a, b) => a - b).map(v => ({ value: v }));
+
+  const iMaxRaw = Math.max(...points.map(p => p.iDC));
+  const iMax = niceCeil(iMaxRaw * 1.05);
+
+  const vTableMin = currentSocV[0];
+  const vTableMax = currentSocV[currentSocV.length - 1];
+  const vMin = Math.max(vTableMin, Math.floor(params.vBatt - 0.5));
+  const vMax = Math.min(vTableMax, Math.ceil(params.vEnd + 0.5));
+  const vRange = vMax - vMin;
+  const vStep = niceVStep(vRange);
+  const vTicks = [];
+  for (let v = vMin; v <= vMax + 0.001; v += vStep) vTicks.push({ value: +v.toFixed(2) });
+  if (vTicks.length && vTicks[vTicks.length - 1].value < vMax - 0.5) vTicks.push({ value: vMax });
+
+  chart = new Chart(ctx, {
+    plugins: [socLabelsPlugin],
+    type: 'line',
+    data: {
+      datasets: [
+        { label: 'Courant DC', data: points.map(p => ({ x: p.t, y: p.iDC })),
+          borderColor: '#e34948', backgroundColor: '#e34948',
+          yAxisID: 'yA', pointRadius: 0, pointHoverRadius: 7,
+          pointHoverBackgroundColor: '#e34948',
+          pointHoverBorderColor: '#ffffff', pointHoverBorderWidth: 2.5,
+          borderWidth: 2, tension: 0 },
+        { label: 'Tension aux bornes', data: points.map(p => ({ x: p.t, y: p.v })),
+          borderColor: '#008300', backgroundColor: '#008300',
+          yAxisID: 'yV', pointRadius: 0, pointHoverRadius: 7,
+          pointHoverBackgroundColor: '#008300',
+          pointHoverBorderColor: '#ffffff', pointHoverBorderWidth: 2.5,
+          borderWidth: 2.5, tension: 0 },
+        { label: 'Tension à vide (V_oc)', data: points.map(p => ({ x: p.t, y: p.voc })),
+          borderColor: '#6fbf73', backgroundColor: '#6fbf73',
+          yAxisID: 'yV', pointRadius: 0, pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#6fbf73',
+          pointHoverBorderColor: '#ffffff', pointHoverBorderWidth: 2.5,
+          borderWidth: 2, borderDash: [5, 4], tension: 0 },
+        { label: 'Pourcentage', data: points.map(p => ({ x: p.t, y: p.soc })),
+          borderColor: 'rgba(0,0,0,0)', backgroundColor: '#3fb950',
+          yAxisID: 'yP', pointRadius: 0, pointHoverRadius: 0,
+          borderWidth: 0, showLine: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      layout: { padding: { top: 4, bottom: 4, left: 0, right: 0 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            title: (items) => fmtTime(items[0].parsed.x),
+            label: (c) => {
+              const y = c.parsed.y;
+              if (c.dataset.label === 'Pourcentage')
+                return 'Pourcentage: ' + y.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+              if (c.dataset.label === 'Tension aux bornes')
+                return 'Tension aux bornes: ' + y.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' V';
+              if (c.dataset.label === 'Tension à vide (V_oc)')
+                return 'Tension à vide (V_oc): ' + y.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' V';
+              return c.dataset.label + ': ' + y.toLocaleString('fr-FR', { maximumFractionDigits: 3 }) + ' A';
+            },
+            afterBody: (items) => {
+              const t = items[0].parsed.x;
+              const remain = Math.max(0, tMax - t);
+              return 'Temps restant → ' + params.vEnd.toFixed(2).replace('.', ',') + 'V : ' + fmtDuration(remain);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear', min: tMin, max: tMax,
+          afterBuildTicks: (a) => { a.ticks = xTicks; },
+          ticks: { color: '#898781', maxRotation: 0, autoSkip: false,
+                   callback: (v) => fmtTimeShort(v) },
+          grid: { display: false }
+        },
+        yA: {
+          type: 'linear', position: 'left', min: 0, max: iMax,
+          title: { display: true, text: 'Courant (A)' },
+          grid: { color: '#e1e0d9' },
+          ticks: { color: '#898781' }
+        },
+        yP: { type: 'linear', display: false, min: 0, max: 100 },
+        yV: {
+          type: 'linear', position: 'right', min: vMin, max: vMax,
+          afterBuildTicks: (axis) => { axis.ticks = vTicks.map(t => ({ value: t.value })); },
+          ticks: { padding: 6, color: 'rgba(0,0,0,0)',
+                   callback: (v) => v + 'V (' + Math.round(voltsToPercent(v)) + '%)' },
+          title: { display: true, text: 'Tension (V)' },
+          grid: { display: false, drawTicks: false }
+        }
+      }
+    }
+  });
+}
+
+function updateResult(sim, params) {
+  const qEnd   = document.getElementById('quickEndTime');
+  const qTotal = document.getElementById('quickTotal');
+  const rc     = document.getElementById('resultCompact');
+
+  if (!sim.feasible) {
+    qEnd.textContent   = '--:--:--';
+    qTotal.textContent = '--:--:--';
+    qEnd.classList.add('empty');
+    qTotal.classList.add('empty');
+    rc.className = 'result-compact err';
+    rc.innerHTML = '<div class="rc-cell">⚠ Configuration invalide : la tension de fin doit être supérieure à la tension initiale.</div>';
+    return;
+  }
+
+  qEnd.textContent   = fmtTime(sim.endSec);
+  qTotal.textContent = fmtDuration(sim.tTotal);
+  qEnd.classList.remove('empty');
+  qTotal.classList.remove('empty');
+
+  rc.className = 'result-compact';
+  rc.innerHTML =
+    '<div class="rc-cell"><span class="rc-label">Pack</span><span class="rc-val">' + params.vNom + ' V → ' + currentCells + 'S Li-ion</span></div>' +
+    '<div class="rc-cell"><span class="rc-label">Bascule CC→CV</span><span class="rc-val">' + Math.round(sim.socCCend) + ' %</span></div>' +
+    '<div class="rc-cell"><span class="rc-label">Phase CC</span><span class="rc-val">' + fmtDuration(sim.tCC_h * 3600) + '</span></div>' +
+    '<div class="rc-cell"><span class="rc-label">Charge</span><span class="rc-val">' + Math.round(sim.socStart) + ' % → ' + Math.round(sim.socEnd) + ' %</span></div>' +
+    '<div class="rc-cell"><span class="rc-label">Cutoff</span><span class="rc-val">' + sim.cutoff + '</span></div>' +
+    '<div class="rc-cell"><span class="rc-label">Phase CV</span><span class="rc-val">' + fmtDuration(sim.tCV_h * 3600) + '</span></div>';
+}
+
+function refreshEtaReco() {
+  const m = MODES[getSelectedMode()] || MODES.ia;
+  const btn = document.getElementById('etaRecoBtn');
+  btn.textContent = 'Reco ' + m.etaReco.toFixed(2);
+  btn.title = 'Appliquer η recommandé par « ' + m.label + ' » (' + m.etaReco + ')';
+}
+document.getElementById('etaRecoBtn').addEventListener('click', () => {
+  const m = MODES[getSelectedMode()] || MODES.ia;
+  document.getElementById('eta').value = m.etaReco;
+  update();
+  saveCurrentProfile();
+});
+
+// Mise à jour de la zone R_int (texte d'estimation + affichage conditionnel)
+function updateRintUI() {
+  const useMeasured = document.getElementById('useMeasuredRint').checked;
+  const row = document.getElementById('rintMeasuredRow');
+  row.hidden = !useMeasured;
+
+  const capacity = parseFloat(document.getElementById('capacity').value) || 14;
+  const vNom     = parseFloat(document.getElementById('vNom').value)     || 48;
+  const age      = document.getElementById('batteryAge').value          || 'old';
+  const estimated = estimateRInt(capacity, vNom, age);
+
+  const txt = document.getElementById('rintEstimateText');
+  if (useMeasured) {
+    const measured = parseFloat(document.getElementById('measuredRint').value);
+    if (isFinite(measured) && measured > 0) {
+      txt.innerHTML = 'R_int utilisée : <span class="rint-val">' + measured + ' mΩ</span> <span class="rint-uncertainty">(mesurée)</span>';
+    } else {
+      txt.innerHTML = 'R_int utilisée : <span class="rint-val">—</span> <span class="rint-uncertainty">(saisir une valeur)</span>';
+    }
+  } else {
+    txt.innerHTML = 'R_int estimée : <span class="rint-val">' + estimated + ' mΩ</span> ' +
+                    '<span class="rint-uncertainty">(± 40 %, estimation par âge)</span>';
+  }
+}
+
+function syncAcFromDc() {
+  const iDC = parseFloat(document.getElementById('iChg').value);
+  const vB  = parseFloat(document.getElementById('vBatt').value);
+  if (!isFinite(iDC) || !isFinite(vB)) return;
+  const iAC = dcToAc(iDC, vB);
+  document.getElementById('iAc120').value = iAC.toFixed(2);
+}
+function syncDcFromAc() {
+  const iAC = parseFloat(document.getElementById('iAc120').value);
+  const vB  = parseFloat(document.getElementById('vBatt').value);
+  if (!isFinite(iAC) || !isFinite(vB)) return;
+  const iDC = acToDc(iAC, vB);
+  document.getElementById('iChg').value = iDC.toFixed(2);
+}
+
+document.getElementById('iChg').addEventListener('input', () => {
+  lastEditedAmp = 'dc';
+  syncAcFromDc();
+});
+document.getElementById('iAc120').addEventListener('input', () => {
+  lastEditedAmp = 'ac';
+  syncDcFromAc();
+});
+document.getElementById('vBatt').addEventListener('input', () => {
+  if (lastEditedAmp === 'dc') syncAcFromDc();
+  else                        syncDcFromAc();
+});
+
+function wireHelp(labelId, btnId, popId) {
+  const label = document.getElementById(labelId);
+  const btn   = document.getElementById(btnId);
+  const pop   = document.getElementById(popId);
+  if (!label || !btn || !pop) return;
+  let hovered = false;
+  let pinned  = false;
+  function refresh() { pop.hidden = !(hovered || pinned); }
+  label.addEventListener('mouseenter', () => { hovered = true;  refresh(); });
+  label.addEventListener('mouseleave', () => { hovered = false; refresh(); });
+  btn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    pinned = !pinned; refresh();
+  });
+  document.addEventListener('click', (e) => {
+    if (!pinned) return;
+    if (label.contains(e.target)) return;
+    pinned = false; refresh();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    pinned = false; hovered = false; refresh();
+  });
+}
+wireHelp('iChgLabel', 'iChgHelpBtn', 'iChgHelpPop');
+wireHelp('iAc120Label', 'iAc120HelpBtn', 'iAc120HelpPop');
+wireHelp('batteryAgeLabel', 'batteryAgeHelpBtn', 'batteryAgeHelpPop');
+wireHelp('etaLabel', 'etaHelpBtn', 'etaHelpPop');
+
+function update() {
+  const vNom     = parseFloat(document.getElementById('vNom').value)     || 48;
+  const vBattIn  = parseFloat(document.getElementById('vBatt').value)     || 0;
+  const vEndIn   = parseFloat(document.getElementById('vEnd').value)      || 0;
+  const iChg     = parseFloat(document.getElementById('iChg').value)      || 0;
+  const capacity = parseFloat(document.getElementById('capacity').value)  || 0;
+  let   eta      = parseFloat(document.getElementById('eta').value);
+  const startStr = document.getElementById('startTime').value            || '08:00:00';
+  const startSec = parseTime(startStr);
+  const mode     = getSelectedMode();
+
+  if (!isFinite(eta)) eta = 0.85;
+  eta = Math.min(1.0, Math.max(0.1, eta));
+  document.getElementById('eta').value = eta;
+
+  updateRintUI();
+  const rInt = getEffectiveRInt();
+
+  refreshEtaReco();
+
+  const cells = Math.max(1, Math.round(vNom / 3.7));
+  if (cells !== currentCells) updateSocTable(cells);
+
+  const vMin = currentSocV[0];
+  const vMax = currentSocV[currentSocV.length - 1];
+
+  const elBatt = document.getElementById('vBatt');
+  const elEnd  = document.getElementById('vEnd');
+  elBatt.min = vMin.toFixed(1); elBatt.max = vMax.toFixed(1);
+  elEnd.min  = vMin.toFixed(1); elEnd.max  = vMax.toFixed(1);
+
+  let vBatt = Math.min(vMax, Math.max(vMin, vBattIn));
+  let vEnd  = Math.min(vMax, Math.max(vMin, vEndIn));
+  if (vBatt !== vBattIn) elBatt.value = vBatt.toFixed(1);
+  if (vEnd  !== vEndIn)  elEnd.value  = vEnd.toFixed(1);
+
+  document.getElementById('vBattPct').textContent =
+    '→ ' + Math.round(voltsToPercent(vBatt)) + ' %';
+  document.getElementById('vEndPct').textContent =
+    '→ ' + Math.round(voltsToPercent(vEnd)) + ' %';
+
+  const sim = simulate({ vBatt, iChg, capacity, startSec, vEnd, mode, eta, rInt_mOhm: rInt });
+  updateResult(sim, { vBatt, vEnd, vNom, eta });
+  createChart(sim, { vBatt, vEnd });
+  fillTable(sim);
+}
+
+function fillTable(sim) {
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+  const pts = sim.points;
+  if (!pts.length) return;
+  const step = Math.max(1, Math.floor(pts.length / 12));
+  for (let i = 0; i < pts.length; i += step) {
+    const p = pts[i];
+    const isCC = p.soc <= sim.socCCend;
+    const phase    = isCC ? 'CC' : 'CV';
+    const phaseClr = isCC ? '#e34948' : '#008300';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtTime(p.t) + '</td>' +
+      '<td>' + p.iDC.toFixed(2) + '</td>' +
+      '<td>' + p.v.toFixed(2) + '</td>' +
+      '<td style="color:#6fbf73">' + p.voc.toFixed(2) + '</td>' +
+      '<td>' + p.soc.toFixed(1) + '</td>' +
+      '<td style="color:' + phaseClr + ';font-weight:600">' + phase + '</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+refreshProfileOptions();
+
+const savedProfile = getCookie('sim_profile');
+if (savedProfile && PROFILES.includes(savedProfile)) {
+  document.getElementById('profile').value = savedProfile;
+}
+
+applyProfileToDom(getSelectedProfile());
+updateProfileStatus();
+refreshEtaReco();
+
+document.getElementById('profile').addEventListener('change', (e) => {
+  const newProfile = e.target.value;
+  setCookie('sim_profile', newProfile);
+  applyProfileToDom(newProfile);
+  updateProfileStatus();
+  update();
+});
+
+document.getElementById('profileComment').addEventListener('input', () => {
+  saveCurrentProfile();
+  refreshProfileOptions();
+  update();
+});
+
+document.getElementById('vNom').addEventListener('change', (e) => {
+  const d = NOM_DEFAULTS[e.target.value];
+  if (d) {
+    document.getElementById('vBatt').value = d.vBatt;
+    document.getElementById('vEnd').value  = d.vEnd;
+  }
+  if (lastEditedAmp === 'dc') syncAcFromDc();
+  else                        syncDcFromAc();
+  update();
+  saveCurrentProfile();
+});
+document.getElementById('vNom').addEventListener('input', () => {
+  update();
+  saveCurrentProfile();
+});
+
+document.querySelectorAll('.controls input, .controls select, .result-bar input, .modes .chip.editable, #useMeasuredRint, #measuredRint, #batteryAge').forEach(el => {
+  if (el.id === 'vNom') return;
+  el.addEventListener('input', () => { update(); saveCurrentProfile(); });
+  el.addEventListener('change', () => { update(); saveCurrentProfile(); });
+});
+
+document.querySelectorAll('input[name="mode"]').forEach(el => {
+  el.addEventListener('change', () => {
+    refreshEtaReco();
+    update();
+    saveCurrentProfile();
+  });
+});
+
+document.getElementById('toggleTbl').addEventListener('change', e => {
+  document.getElementById('tbl').hidden = !e.target.checked;
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  const p = getSelectedProfile();
+  eraseProfile(p);
+  FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id === 'comment' ? 'profileComment' : id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = (DEFAULTS[id] === '1');
+    else el.value = DEFAULTS[id];
+  });
+  setSelectedMode(DEFAULTS.mode);
+  lastEditedAmp = 'dc';
+  syncAcFromDc();
+  refreshProfileOptions();
+  update();
+  saveCurrentProfile();
+});
+
+document.getElementById('resetAllBtn').addEventListener('click', () => {
+  if (!confirm('Effacer les 5 profils de batterie ?')) return;
+  eraseAllProfiles();
+  eraseCookie('sim_profile');
+  document.getElementById('profile').value = DEFAULT_PROFILE;
+  FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id === 'comment' ? 'profileComment' : id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = (DEFAULTS[id] === '1');
+    else el.value = DEFAULTS[id];
+  });
+  setSelectedMode(DEFAULTS.mode);
+  lastEditedAmp = 'dc';
+  syncAcFromDc();
+  refreshProfileOptions();
+  updateProfileStatus();
+  update();
+  saveCurrentProfile();
+});
+
+update();
+</script>
+</body>
+</html>
